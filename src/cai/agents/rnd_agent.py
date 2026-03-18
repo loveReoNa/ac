@@ -19,7 +19,6 @@ from cai.tools.reconnaissance.crypto_tools import strings_command, decode64, dec
 # Web security tools
 from cai.tools.web.headers import web_request_framework
 from cai.tools.web.js_surface_mapper import js_surface_mapper
-from cai.tools.web.webshell_suit import webshell_suit
 
 # Network tools
 from cai.tools.network.capture_traffic import capture_remote_traffic
@@ -54,7 +53,6 @@ Your primary objective is to conduct comprehensive security research, analysis, 
 - Use `strings_command`, `decode64`, and `decode_hex_bytes` for cryptographic operations and analysis
 - Use `web_request_framework` for HTTP-based security testing
 - Use `js_surface_mapper` for JavaScript analysis in web applications
-- Use `webshell_suit` for web shell detection and analysis
 - Use `capture_remote_traffic` for network traffic analysis when needed
 
 ## PROBLEM-SOLVING APPROACH:
@@ -84,7 +82,6 @@ tools = [
     # Web security tools
     web_request_framework,
     js_surface_mapper,
-    webshell_suit,
     
     # Cryptographic tools
     strings_command,
