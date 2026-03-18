@@ -105,7 +105,7 @@ input_guardrails, output_guardrails = get_security_guardrails()
 
 # Instantiate the R&D Agent
 rnd_agent = Agent(
-    name="R&D Agent",
+    name="rnd_agent",
     description="""General-purpose security research agent with broad expertise across multiple cybersecurity domains.
                    Capable of network analysis, web security testing, cryptographic analysis, system reconnaissance,
                    and comprehensive security research.""",
