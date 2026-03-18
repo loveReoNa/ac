@@ -1,177 +1,130 @@
-"""RND Agent - Research and Development Agent with Comprehensive Coverage
-This agent integrates cutting-edge technologies and provides wide-ranging
-problem-solving capabilities across multiple cybersecurity domains.
-Optimized for DeepSeek API integration and maximum coverage.
+"""
+R&D Agent - General Purpose Security Research Agent
 """
 import os
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+
 from cai.sdk.agents import Agent, OpenAIChatCompletionsModel
-from cai.util import load_prompt_template, create_system_prompt_renderer
+from cai.util import create_system_prompt_renderer
+from cai.agents.guardrails import get_security_guardrails
 
-load_dotenv()
-
-# DeepSeek API Configuration
-DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', os.getenv('OPENAI_API_KEY'))
-DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
-
-# Create DeepSeek client
-deepseek_client = AsyncOpenAI(
-    api_key=DEEPSEEK_API_KEY,
-    base_url=DEEPSEEK_BASE_URL,
-)
-
-# Load system prompt (use red team prompt as base, can be customized)
-try:
-    rnd_agent_system_prompt = load_prompt_template("prompts/system_red_team_agent.md")
-except:
-    # Fallback to a default prompt if the file doesn't exist
-    rnd_agent_system_prompt = """You are the RND (Research and Development) Agent, an advanced cybersecurity specialist with comprehensive coverage across all security domains. Your capabilities include reconnaissance, exploitation, defense, analysis, and reporting. You have access to a wide range of tools and should use them strategically to solve complex security challenges."""
-
-# Define comprehensive tools list
-tools = []
-
-# Core execution tools
-try:
-    from cai.tools.reconnaissance.generic_linux_command import generic_linux_command
-    tools.append(generic_linux_command)
-except ImportError:
-    pass
-
-try:
-    from cai.tools.reconnaissance.exec_code import execute_code
-    tools.append(execute_code)
-except ImportError:
-    pass
-
-try:
-    from cai.tools.command_and_control.sshpass import run_ssh_command_with_credentials
-    tools.append(run_ssh_command_with_credentials)
-except ImportError:
-    pass
-
-# Reconnaissance tools
-try:
-    from cai.tools.reconnaissance.shodan import shodan_search, shodan_host_info
-    tools.append(shodan_search)
-    tools.append(shodan_host_info)
-except ImportError:
-    pass
+# Core reconnaissance tools
+from cai.tools.reconnaissance.generic_linux_command import generic_linux_command
+from cai.tools.reconnaissance.exec_code import execute_code
+from cai.tools.reconnaissance.nmap import nmap
+from cai.tools.reconnaissance.shodan import shodan_search, shodan_host_info
+from cai.tools.reconnaissance.crypto_tools import strings_command, decode64, decode_hex_bytes
 
 # Web security tools
-try:
-    from cai.tools.web.headers import web_request_framework
-    tools.append(web_request_framework)
-except ImportError:
-    pass
-
-try:
-    from cai.tools.web.js_surface_mapper import js_surface_mapper
-    tools.append(js_surface_mapper)
-except ImportError:
-    pass
+from cai.tools.web.headers import web_request_framework
+from cai.tools.web.js_surface_mapper import js_surface_mapper
+from cai.tools.web.webshell_suit import webshell_suit
 
 # Network tools
-try:
-    from cai.tools.network.capture_traffic import capture_remote_traffic, remote_capture_session
-    tools.append(capture_remote_traffic)
-    tools.append(remote_capture_session)
-except ImportError:
-    pass
+from cai.tools.network.capture_traffic import capture_remote_traffic
 
-# Specialized tools
-try:
-    from cai.tools.misc.reasoning import think
-    tools.append(think)
-except ImportError:
-    pass
+# Web search tools (conditional)
+from cai.tools.web.search_web import make_web_search_with_explanation
 
-# Search tools (conditional)
-try:
-    if os.getenv('PERPLEXITY_API_KEY'):
-        from cai.tools.web.search_web import make_web_search_with_explanation
-        tools.append(make_web_search_with_explanation)
-except ImportError:
-    pass
+load_dotenv()
+model_name = os.getenv("CAI_MODEL", "alias1")
 
-try:
-    if os.getenv('GOOGLE_SEARCH_API_KEY') and os.getenv('GOOGLE_SEARCH_CX'):
-        from cai.tools.web.google_search import google_search
-        tools.append(google_search)
-except ImportError:
-    pass
+# Determine API key
+api_key = os.getenv("ALIAS_API_KEY", os.getenv("OPENAI_API_KEY", "sk-alias-1234567890"))
 
-# Advanced security testing tools (add if available)
-try:
-    from cai.tools.data_exfiltration.exfiltration import data_exfiltration_test
-    tools.append(data_exfiltration_test)
-except ImportError:
-    pass
+# Instructions for R&D Agent - General purpose with wide coverage
+instructions = """You are an R&D (Research and Development) Security Agent with broad expertise across multiple cybersecurity domains.
 
-try:
-    from cai.tools.exploitation.exploit import exploit_vulnerability
-    tools.append(exploit_vulnerability)
-except ImportError:
-    pass
+Your primary objective is to conduct comprehensive security research, analysis, and problem-solving across diverse scenarios including:
 
-try:
-    from cai.tools.lateral_movement.lateral import lateral_movement_test
-    tools.append(lateral_movement_test)
-except ImportError:
-    pass
+## DOMAIN EXPERTISE:
+1. **Network Security**: Port scanning, traffic analysis, network reconnaissance
+2. **Web Application Security**: Vulnerability assessment, API testing, JS analysis
+3. **System Security**: Linux command execution, code analysis, system enumeration
+4. **Cryptographic Analysis**: Encryption/decryption, hash analysis, crypto challenges
+5. **Threat Intelligence**: Shodan searches, OSINT gathering, threat hunting
+6. **Incident Response**: Forensic analysis, log examination, attack investigation
 
-try:
-    from cai.tools.privilege_scalation.escalation import privilege_escalation_test
-    tools.append(privilege_escalation_test)
-except ImportError:
-    pass
+## TOOL USAGE GUIDELINES:
+- Use `generic_linux_command` for system-level operations and shell commands
+- Use `execute_code` for running scripts, parsing data, or custom analysis
+- Use `nmap` for network reconnaissance and port scanning
+- Use `shodan_search` and `shodan_host_info` for external intelligence gathering
+- Use `strings_command`, `decode64`, and `decode_hex_bytes` for cryptographic operations and analysis
+- Use `web_request_framework` for HTTP-based security testing
+- Use `js_surface_mapper` for JavaScript analysis in web applications
+- Use `webshell_suit` for web shell detection and analysis
+- Use `capture_remote_traffic` for network traffic analysis when needed
 
-# Security guardrails (optional)
-try:
-    from cai.agents.guardrails import get_security_guardrails
-    input_guardrails, output_guardrails = get_security_guardrails()
-except ImportError:
-    input_guardrails, output_guardrails = [], []
+## PROBLEM-SOLVING APPROACH:
+1. **Assess**: Understand the problem scope and requirements
+2. **Plan**: Develop a systematic approach using appropriate tools
+3. **Execute**: Carry out investigations methodically
+4. **Analyze**: Interpret results and identify patterns
+5. **Report**: Provide clear findings and recommendations
 
-# Create RND Agent
-rnd_agent = Agent(
-    name="RND Agent",
-    instructions=create_system_prompt_renderer(rnd_agent_system_prompt),
-    description="""Advanced Research and Development Agent with comprehensive cybersecurity coverage.
+## SAFETY AND ETHICS:
+- Always operate within authorized boundaries
+- Respect privacy and data protection regulations
+- Document your methodology for reproducibility
+- Prioritize defensive security when appropriate
+
+You are versatile and adaptive - tackle challenges across the cybersecurity spectrum with thoroughness and precision."""
+
+# Assemble comprehensive toolset
+tools = [
+    # Core system tools
+    generic_linux_command,
+    execute_code,
     
-SPECIALIZATIONS:
-• Full-spectrum security assessment: Reconnaissance, exploitation, lateral movement, privilege escalation
-• Cutting-edge technology integration: AI-powered analysis, automated toolchains, adaptive methodologies
-• Multi-domain expertise: Web security, network analysis, binary reverse engineering, cloud security
-• Research-oriented approach: Novel vulnerability discovery, exploit development, defensive countermeasure design
-• DeepSeek API optimization: Leveraging state-of-the-art language models for superior reasoning and code generation
+    # Network reconnaissance
+    nmap,
+    
+    # Web security tools
+    web_request_framework,
+    js_surface_mapper,
+    webshell_suit,
+    
+    # Cryptographic tools
+    strings_command,
+    decode64,
+    decode_hex_bytes,
+    
+    # Network analysis
+    capture_remote_traffic,
+]
 
-CAPABILITIES:
-1. Intelligent Reconnaissance: Automated target profiling, attack surface mapping, vulnerability identification
-2. Advanced Exploitation: Custom payload development, bypass techniques, post-exploitation automation
-3. Defensive Research: Security control evaluation, mitigation strategy development, incident response simulation
-4. Toolchain Integration: Seamless coordination of security tools, workflow automation, result correlation
-5. Knowledge Synthesis: Cross-domain pattern recognition, threat intelligence integration, predictive analysis
+# Add Shodan tools if API key is available
+if os.getenv("SHODAN_API_KEY"):
+    tools.extend([shodan_search, shodan_host_info])
 
-TECHNOLOGICAL EDGE:
-• Adaptive problem-solving algorithms
-• Multi-model AI orchestration
-• Real-time threat intelligence feeds
-• Automated reporting and documentation
-• Continuous learning and improvement
+# Add web search if API key is available
+if os.getenv("PERPLEXITY_API_KEY"):
+    tools.append(make_web_search_with_explanation)
 
-This agent represents the pinnacle of cybersecurity automation, combining breadth of coverage with depth of expertise for unparalleled problem-solving capabilities.""",
+# Get security guardrails
+input_guardrails, output_guardrails = get_security_guardrails()
+
+# Instantiate the R&D Agent
+rnd_agent = Agent(
+    name="R&D Agent",
+    description="""General-purpose security research agent with broad expertise across multiple cybersecurity domains.
+                   Capable of network analysis, web security testing, cryptographic analysis, system reconnaissance,
+                   and comprehensive security research.""",
+    instructions=create_system_prompt_renderer(instructions),
     tools=tools,
     input_guardrails=input_guardrails,
     output_guardrails=output_guardrails,
     model=OpenAIChatCompletionsModel(
-        model="deepseek-chat",  # DeepSeek model
-        openai_client=deepseek_client,
+        model=model_name,
+        openai_client=AsyncOpenAI(api_key=api_key),
     ),
 )
 
-# Transfer function for compatibility
-def transfer_to_rnd_agent(**kwargs):
-    """Transfer to RND Agent.
-    Accepts any keyword arguments but ignores them."""
+def transfer_to_rnd_agent(**kwargs):  # pylint: disable=unused-argument
+    """
+    Transfer to R&D Agent.
+    Accepts arbitrary kwargs for compatibility; returns the agent instance.
+    """
     return rnd_agent
